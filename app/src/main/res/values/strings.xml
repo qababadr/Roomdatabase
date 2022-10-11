@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">RoomDatabase</string>
+    <string name="lbl_price">Price</string>
+    <string name="lbl_home">Home</string>
+    <string name="lbl_wishlist">Wishlist</string>
+    <string name="lbl_full_name">Full Name</string>
+    <string name="lbl_email">Email</string>
+    <string name="lbl_address">Address</string>
+    <string name="lbl_phone">Phone</string>
+    <string name="lbl_save">Save</string>
+    <string name="txt_user_saved">User is saved successfully</string>
+    <string name="txt_empty_wishlist">Your wishlist is empty, try to fill it with products you are willing to buy</string>
+    <string name="lbl_add_to_wishlist">Add to wish list</string>
+    <string name="txt_added_to_wishlist">The product is added to wishlist</string>
+</resources>
