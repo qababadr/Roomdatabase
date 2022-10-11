@@ -1,15 +1,27 @@
 package com.dev.roomdatabase.local.repository
 
+import com.dev.roomdatabase.local.database.ProductDatabase
+import com.dev.roomdatabase.local.entity.*
 import com.dev.roomdatabase.local.model.Product
 import com.dev.roomdatabase.local.model.UserDetail
 import com.dev.roomdatabase.local.model.Wishlist
 import kotlinx.coroutines.flow.*
 import javax.inject.Inject
+import kotlin.random.Random
 
 class RoomRepository @Inject constructor(
-
+    private val database: ProductDatabase
 ) {
 
+    private val productDao = database.productDao()
+
+    private val userDao = database.userDao()
+
+    private val bioDao = database.bioDao()
+
+    private val mediaDao = database.mediaDao()
+
+    private val wishlistDao = database.wishlistDao()
 
     companion object {
 
@@ -67,7 +79,22 @@ class RoomRepository @Inject constructor(
      */
     suspend fun seed() {
         clear()
-
+        products.forEach {
+            productDao.addProduct(
+                product = ProductEntity(
+                    productId = it.productId,
+                    title = "Product ${it.productId}",
+                    price = 49.99 + Random.nextInt(from = 50, until = 100),
+                    description = "A brief description of the product ${it.productId}, enjoy our new arrival for this year."
+                )
+            )
+            mediaDao.insertMedia(
+                media = MediaEntity(
+                    productId = it.productId,
+                    url = it.imageUrl
+                )
+            )
+        }
     }
 
     /**
@@ -78,7 +105,11 @@ class RoomRepository @Inject constructor(
      * @return [Long] The inserted user id otherwise the updated user id
      */
     suspend fun addOrUpdateUser(email: String, fullName: String): Long {
-        return -1L
+        return try {
+            userDao.insertUser(user = UserEntity(email = email, firstAndLastname = fullName))
+        } catch (exp: Exception) {
+            -1L
+        }
     }
 
     /**
@@ -89,7 +120,7 @@ class RoomRepository @Inject constructor(
      * @param phone [String]
      */
     suspend fun addOrUpdateBio(userId: Long, address: String, phone: String) {
-
+        bioDao.insertBio(bio = BioEntity(userId = userId, address = address, phone = phone))
     }
 
     /**
@@ -100,7 +131,21 @@ class RoomRepository @Inject constructor(
      * @return [Int] if -1 is returned, the insertion did not took place
      */
     suspend fun addToWishlist(productId: Long, wishlistTitle: String): Long {
-        return -1
+        val user = userDao.checkUser().first() ?: return -1L
+        val wishlistId = wishlistDao.addToWishlist(
+            wish = WishlistEntity(
+                productId = productId,
+                userId = user.id,
+                title = wishlistTitle
+            )
+        )
+        wishlistDao.insertWishlistProductCrossRef(
+            wishlistCrossRef = WishlistProductCrossRef(
+                wishlistId = wishlistId,
+                productId = productId
+            )
+        )
+        return wishlistId
     }
 
     /**
@@ -109,7 +154,8 @@ class RoomRepository @Inject constructor(
      * @return [Flow]<[List]<[Product]>>
      */
     fun getProducts(): Flow<List<Product>> {
-        return emptyFlow()
+        return productDao.getProducts()
+            .map { it.map { productWithMedias -> productWithMedias.toProduct() } }
     }
 
 
@@ -119,7 +165,17 @@ class RoomRepository @Inject constructor(
      * @return [Flow]<[List]<[Wishlist]>>
      */
     fun getWishlists(): Flow<List<Wishlist>> {
-        return emptyFlow()
+        return flow {
+            val user = userDao.checkUser().first()
+            if (user == null) {
+                emit(emptyList())
+            } else {
+                wishlistDao.getAllWishlistWithDetail(userId = user.id)
+                    .collect {
+                        emit(it.map { wishlistWithProductsAndMedias -> wishlistWithProductsAndMedias.toWishlist() })
+                    }
+            }
+        }
     }
 
     /**
@@ -130,7 +186,9 @@ class RoomRepository @Inject constructor(
      *  @return [Flow]<[Boolean]>
      */
     fun isActiveUser(): Flow<Boolean> {
-        return emptyFlow()
+        return flow {
+            userDao.checkUser().collect { emit(value = it != null) }
+        }
     }
 
     /**
@@ -139,7 +197,7 @@ class RoomRepository @Inject constructor(
      * @return [Flow]<[UserDetail]?>
      */
     fun getLastUser(): Flow<UserDetail?> {
-        return emptyFlow()
+        return userDao.getLastUser().map { it?.toUserDetail() }
     }
 
     /**
@@ -147,14 +205,16 @@ class RoomRepository @Inject constructor(
      *
      * @param id [Long]
      */
-    suspend fun deleteWishlist(id: Long){
-
+    suspend fun deleteWishlist(id: Long) {
+        wishlistDao.deleteWishlist(id = id)
     }
 
     /**
-     * Clear user and bio
+     * Clear necessary data
      */
     private suspend fun clear() {
-
+        userDao.deleteAll()
+        productDao.deleteAll()
+        wishlistDao.deleteAll()
     }
 }
